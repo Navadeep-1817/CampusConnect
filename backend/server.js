@@ -30,7 +30,7 @@ const server = http.createServer(app);
 // Initialize Socket.io with CORS and performance optimizations
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: ['https://campus-connect-hazel-xi.vercel.app', 'http://localhost:5173', process.env.CLIENT_URL || 'http://localhost:5173'],
     methods: ['GET', 'POST'],
     credentials: true
   },
@@ -59,9 +59,29 @@ connectDB();
 // Middleware
 app.use(helmet());
 app.use(compression());
+
+// CORS Configuration - Allow multiple origins
+const allowedOrigins = [
+  process.env.CLIENT_URL || 'http://localhost:5173',
+  'https://campus-connect-hazel-xi.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:5000'
+];
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
-  credentials: true
+  origin: function(origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Allow all origins for file downloads
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
