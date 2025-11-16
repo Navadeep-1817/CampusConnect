@@ -2,6 +2,8 @@ const Notice = require('../models/Notice');
 const Acknowledgment = require('../models/Acknowledgment');
 const User = require('../models/User');
 const mongoose = require('mongoose');
+const { sendEmail, sendBulkEmails } = require('../services/emailService');
+const { noticeEmailTemplate } = require('../templates/emailTemplates');
 
 // @desc    Create notice
 // @route   POST /api/notices
@@ -112,13 +114,14 @@ exports.createNotice = async (req, res) => {
       noticeData.expiryDate = expiryDate;
     }
 
-    // Handle file attachments from multer
+    // Handle file attachments from multer with proper structure
     if (req.files && req.files.length > 0) {
       noticeData.attachments = req.files.map(file => ({
         fileName: file.originalname,
-        fileUrl: `/uploads/${file.filename}`,
+        fileUrl: `/api/uploads/${file.filename}`,
         fileType: file.mimetype,
-        fileSize: file.size
+        fileSize: file.size,
+        uploadedAt: new Date()
       }));
     }
 
@@ -135,6 +138,13 @@ exports.createNotice = async (req, res) => {
     }
 
     console.log('✅ Notice fully populated:', notice);
+
+    // Send email notifications to relevant users (asynchronously, don't wait)
+    if (process.env.ENABLE_EMAIL_NOTIFICATIONS === 'true') {
+      sendNoticeEmails(notice).catch(err => 
+        console.error('❌ Email sending failed:', err.message)
+      );
+    }
 
     res.status(201).json({
       success: true,
@@ -388,9 +398,10 @@ exports.updateNotice = async (req, res) => {
     if (req.files && req.files.length > 0) {
       const newAttachments = req.files.map(file => ({
         fileName: file.originalname,
-        fileUrl: `/uploads/${file.filename}`,
+        fileUrl: `/api/uploads/${file.filename}`,
         fileType: file.mimetype,
-        fileSize: file.size
+        fileSize: file.size,
+        uploadedAt: new Date()
       }));
       req.body.attachments = [...(notice.attachments || []), ...newAttachments];
     }
@@ -542,3 +553,66 @@ exports.replyToComment = async (req, res) => {
     });
   }
 };
+
+// Helper function to send emails to relevant users
+async function sendNoticeEmails(notice) {
+  try {
+    console.log('📧 Sending email notifications for notice:', notice.title);
+
+    // Build query to find target users
+    let userQuery = { 
+      isActive: true,
+      emailNotifications: true,
+      'notificationPreferences.newNotice': true
+    };
+
+    // Filter by department for department-specific notices
+    if (notice.visibility === 'department' && notice.department) {
+      userQuery.department = notice.department;
+    }
+
+    // Filter by role for specific visibilities
+    if (notice.visibility === 'student') {
+      userQuery.role = 'student';
+    } else if (notice.visibility === 'faculty') {
+      userQuery.role = 'faculty';
+    }
+
+    // Filter by year if specified
+    if (notice.targetYear) {
+      userQuery.year = notice.targetYear;
+    }
+
+    // Filter by batch if specified
+    if (notice.targetBatch) {
+      userQuery.batch = notice.targetBatch;
+    }
+
+    const users = await User.find(userQuery).select('email name').lean();
+    
+    if (users.length === 0) {
+      console.log('ℹ️ No users match the criteria for email notification');
+      return;
+    }
+
+    console.log(`📬 Sending emails to ${users.length} user(s)`);
+
+    // Send emails in batches
+    const emailPromises = users.map(user => 
+      sendEmail({
+        to: user.email,
+        subject: `${notice.priority === 'urgent' ? '⚠️ URGENT: ' : ''}New Notice: ${notice.title}`,
+        html: noticeEmailTemplate(notice, user.name)
+      })
+    );
+
+    const results = await Promise.allSettled(emailPromises);
+    
+    const successCount = results.filter(r => r.status === 'fulfilled').length;
+    const failCount = results.filter(r => r.status === 'rejected').length;
+    
+    console.log(`✅ Email notifications sent: ${successCount} success, ${failCount} failed`);
+  } catch (error) {
+    console.error('❌ Error in sendNoticeEmails:', error.message);
+  }
+}

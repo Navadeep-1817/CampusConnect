@@ -273,13 +273,16 @@ exports.sendMessage = async (req, res) => {
       messageType: messageType || 'text'
     };
 
-    // Handle file attachments
+    // Handle file attachments with proper structure
     if (req.files && req.files.length > 0) {
       messageData.attachments = req.files.map(file => ({
-        fileName: file.originalname,
-        fileUrl: `/uploads/${file.filename}`,
-        fileType: file.mimetype,
-        fileSize: file.size
+        filename: file.filename,
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size,
+        fileUrl: `/api/uploads/${file.filename}`,
+        filePath: `/uploads/${file.filename}`,
+        uploadedAt: new Date()
       }));
       // If files are attached, set message type accordingly
       if (req.files[0].mimetype.startsWith('image/')) {

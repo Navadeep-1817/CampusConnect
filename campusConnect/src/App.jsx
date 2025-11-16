@@ -9,6 +9,7 @@ import MainLayout from './layouts/MainLayout';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ProfileEdit from './pages/ProfileEdit';
+import ChangePassword from './pages/ChangePassword';
 import Dashboard from './pages/Dashboard';
 import NoticeList from './pages/Notices/NoticeList';
 import NoticeForm from './pages/Notices/NoticeForm';
@@ -25,7 +26,23 @@ const ProfilePage = () => {
   return (
     <MainLayout>
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6">My Profile</h1>
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">My Profile</h1>
+          <div className="flex gap-3">
+            <Link
+              to="/profile/change-password"
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+            >
+              Change Password
+            </Link>
+            <Link
+              to="/profile/edit"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+            >
+              Edit Profile
+            </Link>
+          </div>
+        </div>
         <div className="bg-white rounded-lg shadow p-6 space-y-4">
           <div>
             <label className="text-sm text-gray-600">Name</label>
@@ -134,6 +151,15 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <ProfileEdit />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/profile/change-password"
+                element={
+                  <ProtectedRoute>
+                    <ChangePassword />
                   </ProtectedRoute>
                 }
               />

@@ -427,45 +427,56 @@ const Chat = () => {
                                 {/* Display attachments */}
                                 {message.attachments && message.attachments.length > 0 && (
                                   <div className="space-y-2 p-2">
-                                    {message.attachments.map((attachment, idx) => (
-                                      <div key={idx}>
-                                        {attachment.fileType.startsWith('image/') ? (
-                                          <div className="relative">
-                                            <img
-                                              src={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${attachment.fileUrl}`}
-                                              alt={attachment.fileName}
-                                              className="max-w-xs rounded-lg"
-                                            />
+                                    {message.attachments.map((attachment, idx) => {
+                                      // Support both old and new attachment formats
+                                      const fileUrl = attachment.fileUrl || `/api/uploads/${attachment.filename}`;
+                                      const fileName = attachment.originalName || attachment.fileName || attachment.filename;
+                                      const fileType = attachment.mimeType || attachment.fileType;
+                                      const fileSize = attachment.size || attachment.fileSize;
+                                      // Use base server URL without /api since fileUrl already has /api/uploads
+                                      const baseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace('/api', '');
+                                      const downloadUrl = fileUrl.startsWith('http') ? fileUrl : `${baseUrl}${fileUrl}`;
+                                      
+                                      return (
+                                        <div key={idx}>
+                                          {fileType?.startsWith('image/') ? (
+                                            <div className="relative">
+                                              <img
+                                                src={downloadUrl}
+                                                alt={fileName}
+                                                className="max-w-xs rounded-lg"
+                                              />
+                                              <a
+                                                href={downloadUrl}
+                                                download={fileName}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="absolute top-2 right-2 p-2 bg-black bg-opacity-50 rounded-full text-white hover:bg-opacity-70"
+                                              >
+                                                <FaDownload />
+                                              </a>
+                                            </div>
+                                          ) : (
                                             <a
-                                              href={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${attachment.fileUrl}`}
-                                              download={attachment.fileName}
+                                              href={downloadUrl}
+                                              download={fileName}
                                               target="_blank"
                                               rel="noopener noreferrer"
-                                              className="absolute top-2 right-2 p-2 bg-black bg-opacity-50 rounded-full text-white hover:bg-opacity-70"
+                                              className={`flex items-center gap-2 p-2 rounded-lg ${
+                                                isOwnMessage ? 'bg-blue-500' : 'bg-gray-100'
+                                              }`}
                                             >
-                                              <FaDownload />
+                                              <FaFile className={isOwnMessage ? 'text-white' : 'text-blue-600'} />
+                                              <div className="flex-1 min-w-0">
+                                                <p className="text-xs truncate">{fileName}</p>
+                                                <p className="text-xs opacity-70">{(fileSize / 1024).toFixed(2)} KB</p>
+                                              </div>
+                                              <FaDownload className={isOwnMessage ? 'text-white' : 'text-gray-600'} />
                                             </a>
-                                          </div>
-                                        ) : (
-                                          <a
-                                            href={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${attachment.fileUrl}`}
-                                            download={attachment.fileName}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className={`flex items-center gap-2 p-2 rounded-lg ${
-                                              isOwnMessage ? 'bg-blue-500' : 'bg-gray-100'
-                                            }`}
-                                          >
-                                            <FaFile className={isOwnMessage ? 'text-white' : 'text-blue-600'} />
-                                            <div className="flex-1 min-w-0">
-                                              <p className="text-xs truncate">{attachment.fileName}</p>
-                                              <p className="text-xs opacity-70">{(attachment.fileSize / 1024).toFixed(2)} KB</p>
-                                            </div>
-                                            <FaDownload className={isOwnMessage ? 'text-white' : 'text-gray-600'} />
-                                          </a>
-                                        )}
-                                      </div>
-                                    ))}
+                                          )}
+                                        </div>
+                                      );
+                                    })}
                                   </div>
                                 )}
                                 {/* Display text message */}

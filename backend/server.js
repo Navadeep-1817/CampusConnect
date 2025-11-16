@@ -184,6 +184,35 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Test file upload endpoint
+app.get('/api/test-upload', (req, res) => {
+  const fs = require('fs');
+  const uploadDir = path.join(__dirname, 'uploads');
+  
+  // Check if upload directory exists
+  const dirExists = fs.existsSync(uploadDir);
+  
+  // List files in upload directory
+  let files = [];
+  if (dirExists) {
+    files = fs.readdirSync(uploadDir);
+  }
+  
+  res.json({
+    success: true,
+    uploadDirectory: uploadDir,
+    directoryExists: dirExists,
+    filesCount: files.length,
+    files: files.slice(0, 10), // Show first 10 files
+    routes: {
+      staticUpload: '/uploads/:filename',
+      apiUpload: '/api/uploads/:filename',
+      apiDownload: '/api/download/:filename',
+      apiFiles: '/api/files/:filename'
+    }
+  });
+});
+
 // Root route
 app.get('/', (req, res) => {
   res.json({
@@ -213,6 +242,12 @@ app.use((req, res, next) => {
 // Error handler (must be absolute last)
 app.use(errorHandler);
 
+// Start cron jobs for email notifications
+const { startCronJobs } = require('./services/cronJobs');
+if (process.env.NODE_ENV === 'production' || process.env.ENABLE_CRON_JOBS === 'true') {
+  startCronJobs();
+}
+
 // Start server
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
@@ -225,6 +260,8 @@ server.listen(PORT, () => {
 ║        Environment: ${process.env.NODE_ENV || 'development'}                        ║
 ║        MongoDB: Connected                             ║
 ║        Socket.io: Active                              ║
+║        Email: ${process.env.EMAIL_USER ? 'Configured' : 'Not Configured'}                          ║
+║        Cron Jobs: ${process.env.ENABLE_CRON_JOBS === 'true' ? 'Enabled' : 'Disabled'}                       ║
 ║                                                       ║
 ╚═══════════════════════════════════════════════════════╝
   `);

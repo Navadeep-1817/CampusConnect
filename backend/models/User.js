@@ -74,6 +74,29 @@ const userSchema = new mongoose.Schema({
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
+  },
+  // Email notification preferences
+  emailNotifications: {
+    type: Boolean,
+    default: true
+  },
+  notificationPreferences: {
+    newNotice: {
+      type: Boolean,
+      default: true
+    },
+    acknowledgmentReminder: {
+      type: Boolean,
+      default: true
+    },
+    dailyDigest: {
+      type: Boolean,
+      default: false
+    },
+    weeklyDigest: {
+      type: Boolean,
+      default: true
+    }
   }
 }, {
   timestamps: true

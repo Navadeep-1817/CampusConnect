@@ -199,24 +199,34 @@ const NoticeDetail = () => {
               <div className="mb-6">
                 <h3 className="text-lg font-semibold text-gray-800 mb-3">Attachments</h3>
                 <div className="space-y-2">
-                  {notice.attachments.map((attachment, index) => (
-                    <a
-                      key={index}
-                      href={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${attachment.fileUrl}`}
-                      download={attachment.fileName}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-between bg-gray-50 p-3 rounded-lg hover:bg-gray-100 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <FaDownload className="text-blue-600" />
-                        <span className="text-sm text-gray-700">{attachment.fileName}</span>
-                      </div>
-                      <span className="text-xs text-gray-500">
-                        {(attachment.fileSize / 1024).toFixed(2)} KB
-                      </span>
-                    </a>
-                  ))}
+                  {notice.attachments.map((attachment, index) => {
+                    // Support both old and new formats
+                    const fileUrl = attachment.fileUrl || `/api/uploads/${attachment.filename}`;
+                    const fileName = attachment.fileName || attachment.originalName || attachment.filename;
+                    const fileSize = attachment.fileSize || attachment.size;
+                    // Use base server URL without /api since fileUrl already has /api/uploads
+                    const baseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace('/api', '');
+                    const downloadUrl = fileUrl.startsWith('http') ? fileUrl : `${baseUrl}${fileUrl}`;
+                    
+                    return (
+                      <a
+                        key={index}
+                        href={downloadUrl}
+                        download={fileName}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-between bg-gray-50 p-3 rounded-lg hover:bg-gray-100 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <FaDownload className="text-blue-600" />
+                          <span className="text-sm text-gray-700">{fileName}</span>
+                        </div>
+                        <span className="text-xs text-gray-500">
+                          {(fileSize / 1024).toFixed(2)} KB
+                        </span>
+                      </a>
+                    );
+                  })}
                 </div>
               </div>
             )}

@@ -57,17 +57,47 @@ const LocalAdminDashboard = () => {
         user.department._id || user.department
       );
 
+      const ackData = ackStatsRes.data.data || {};
+      const ackRate = ackData.totalNotices > 0 
+        ? ((ackData.totalAcknowledgments / (studentList.length * ackData.totalNotices)) * 100)
+        : 0;
+
       setStats({
         totalFaculty: facultyList.length,
         totalStudents: studentList.length,
         totalNotices: noticesRes.data.pagination?.total || 0,
-        acknowledgmentRate: ackStatsRes.data.data?.overallAckRate || 0
+        acknowledgmentRate: ackRate
       });
 
       setFaculty(facultyList);
       setStudents(studentList);
       setRecentNotices(noticesRes.data.data || []);
-      setAckStats(ackStatsRes.data.data?.noticeStats || []);
+      
+      // Fetch detailed acknowledgment stats for each notice
+      const noticeStatsPromises = (noticesRes.data.data || []).slice(0, 10).map(async (notice) => {
+        try {
+          const ackRes = await acknowledgmentAPI.getNoticeAcknowledgments(notice._id);
+          const acks = ackRes.data.data || [];
+          const totalStudents = studentList.length;
+          const viewedCount = acks.filter(a => a.hasViewed).length;
+          const acknowledgedCount = acks.filter(a => a.isAcknowledged).length;
+          
+          return {
+            noticeId: notice._id,
+            noticeTitle: notice.title,
+            totalStudents,
+            viewedCount,
+            acknowledgedCount,
+            acknowledgmentRate: totalStudents > 0 ? (acknowledgedCount / totalStudents) * 100 : 0
+          };
+        } catch (error) {
+          console.error(`Error fetching ack stats for notice ${notice._id}:`, error);
+          return null;
+        }
+      });
+      
+      const noticeStats = (await Promise.all(noticeStatsPromises)).filter(s => s !== null);
+      setAckStats(noticeStats);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       toast.error('Failed to load dashboard data');

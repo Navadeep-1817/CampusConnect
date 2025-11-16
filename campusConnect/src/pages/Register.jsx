@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { departmentAPI } from '../services/api';
 import { toast } from 'react-toastify';
-import { FaUser, FaEnvelope, FaLock, FaUserTag, FaBuilding } from 'react-icons/fa';
+import { FaUser, FaEnvelope, FaLock, FaUserTag, FaBuilding, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { ROLES } from '../utils/constants';
 
 const Register = () => {
@@ -20,6 +20,9 @@ const Register = () => {
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingDepartments, setLoadingDepartments] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordStrength, setPasswordStrength] = useState({ score: 0, text: '', color: '' });
 
   useEffect(() => {
     fetchDepartments();
@@ -37,11 +40,37 @@ const Register = () => {
     }
   };
 
+  const calculatePasswordStrength = (password) => {
+    let score = 0;
+    if (!password) return { score: 0, text: '', color: '' };
+    
+    // Length check
+    if (password.length >= 8) score += 1;
+    if (password.length >= 12) score += 1;
+    
+    // Complexity checks
+    if (/[a-z]/.test(password)) score += 1; // lowercase
+    if (/[A-Z]/.test(password)) score += 1; // uppercase
+    if (/[0-9]/.test(password)) score += 1; // numbers
+    if (/[^a-zA-Z0-9]/.test(password)) score += 1; // special chars
+    
+    // Determine strength
+    if (score <= 2) return { score, text: 'Weak', color: 'bg-red-500' };
+    if (score <= 4) return { score, text: 'Medium', color: 'bg-yellow-500' };
+    return { score, text: 'Strong', color: 'bg-green-500' };
+  };
+
   const handleChange = (e) => {
+    const { name, value } = e.target;
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [name]: value
     });
+    
+    // Update password strength when password changes
+    if (name === 'password') {
+      setPasswordStrength(calculatePasswordStrength(value));
+    }
   };
 
   const validateForm = () => {
@@ -168,15 +197,37 @@ const Register = () => {
                 <input
                   id="password"
                   name="password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
                   value={formData.password}
                   onChange={handleChange}
-                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Enter your password"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <FaEyeSlash className="h-5 w-5" /> : <FaEye className="h-5 w-5" />}
+                </button>
               </div>
-              <p className="mt-1 text-xs text-gray-500">Minimum 6 characters</p>
+              {formData.password && (
+                <div className="mt-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 bg-gray-200 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full transition-all ${passwordStrength.color}`}
+                        style={{ width: `${(passwordStrength.score / 6) * 100}%` }}
+                      ></div>
+                    </div>
+                    <span className={`text-xs font-medium ${passwordStrength.text === 'Weak' ? 'text-red-600' : passwordStrength.text === 'Medium' ? 'text-yellow-600' : 'text-green-600'}`}>
+                      {passwordStrength.text}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">Use 8+ characters with mix of letters, numbers & symbols</p>
+                </div>
+              )}
             </div>
 
             {/* Confirm Password */}
@@ -191,14 +242,24 @@ const Register = () => {
                 <input
                   id="confirmPassword"
                   name="confirmPassword"
-                  type="password"
+                  type={showConfirmPassword ? 'text' : 'password'}
                   required
                   value={formData.confirmPassword}
                   onChange={handleChange}
-                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Confirm your password"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                >
+                  {showConfirmPassword ? <FaEyeSlash className="h-5 w-5" /> : <FaEye className="h-5 w-5" />}
+                </button>
               </div>
+              {formData.confirmPassword && formData.password !== formData.confirmPassword && (
+                <p className="mt-1 text-xs text-red-500">Passwords do not match</p>
+              )}
             </div>
 
             {/* Role Selection */}
