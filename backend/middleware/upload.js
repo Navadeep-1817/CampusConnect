@@ -1,23 +1,33 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { isCloudStorageConfigured } = require('../services/fileStorage');
 
-// Ensure uploads directory exists
+// Ensure uploads directory exists (for local fallback)
 const uploadDir = path.join(__dirname, '../uploads');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-// Configure storage
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
+// Configure storage based on cloud storage availability
+let storage;
+if (isCloudStorageConfigured()) {
+  // Use memory storage for cloud uploads (Google Drive or S3)
+  console.log('📁 Using memory storage for cloud file uploads');
+  storage = multer.memoryStorage();
+} else {
+  // Use disk storage for local development
+  console.log('📁 Using disk storage for local file uploads');
+  storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+      cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    }
+  });
+}
 
 // File filter
 const fileFilter = (req, file, cb) => {

@@ -20,7 +20,7 @@ const chatMessageSchema = new mongoose.Schema({
     enum: ['text', 'emoji', 'file', 'image'],
     default: 'text'
   },
-  // File attachments
+  // File attachments (Google Drive URLs or local paths)
   attachments: [{
     fileName: {
       type: String,

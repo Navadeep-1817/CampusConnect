@@ -4,6 +4,12 @@ const User = require('../models/User');
 const mongoose = require('mongoose');
 const { sendEmail, sendBulkEmails } = require('../services/emailService');
 const { noticeEmailTemplate } = require('../templates/emailTemplates');
+const { 
+  uploadFile, 
+  deleteFile, 
+  isCloudStorageConfigured, 
+  getStorageType 
+} = require('../services/fileStorage');
 
 // @desc    Create notice
 // @route   POST /api/notices
@@ -114,15 +120,41 @@ exports.createNotice = async (req, res) => {
       noticeData.expiryDate = expiryDate;
     }
 
-    // Handle file attachments from multer with proper structure
+    // Handle file attachments - upload to cloud storage if configured
     if (req.files && req.files.length > 0) {
-      noticeData.attachments = req.files.map(file => ({
-        fileName: file.originalname,
-        fileUrl: `/api/uploads/${file.filename}`,
-        fileType: file.mimetype,
-        fileSize: file.size,
-        uploadedAt: new Date()
-      }));
+      if (isCloudStorageConfigured()) {
+        console.log(`☁️ Uploading ${req.files.length} files to ${getStorageType()}...`);
+        
+        // Upload files to cloud storage (Google Drive or S3)
+        const uploadPromises = req.files.map(async (file) => {
+          try {
+            const cloudUrl = await uploadFile(file.buffer, file.originalname, file.mimetype);
+            return {
+              fileName: file.originalname,
+              fileUrl: cloudUrl,
+              fileType: file.mimetype,
+              fileSize: file.size,
+              uploadedAt: new Date()
+            };
+          } catch (error) {
+            console.error(`❌ Failed to upload ${file.originalname}:`, error.message);
+            throw error;
+          }
+        });
+        
+        noticeData.attachments = await Promise.all(uploadPromises);
+        console.log('✅ All files uploaded to cloud storage');
+      } else {
+        // Fallback to local storage (for development)
+        console.log('📁 Using local storage for files');
+        noticeData.attachments = req.files.map(file => ({
+          fileName: file.originalname,
+          fileUrl: `/api/uploads/${file.filename}`,
+          fileType: file.mimetype,
+          fileSize: file.size,
+          uploadedAt: new Date()
+        }));
+      }
     }
 
     console.log('📦 Notice Data to Create:', noticeData);
@@ -399,15 +431,42 @@ exports.updateNotice = async (req, res) => {
       });
     }
 
-    // Handle new file attachments
+    // Handle new file attachments - upload to cloud storage if configured
     if (req.files && req.files.length > 0) {
-      const newAttachments = req.files.map(file => ({
-        fileName: file.originalname,
-        fileUrl: `/api/uploads/${file.filename}`,
-        fileType: file.mimetype,
-        fileSize: file.size,
-        uploadedAt: new Date()
-      }));
+      let newAttachments;
+      
+      if (isCloudStorageConfigured()) {
+        console.log(`☁️ Uploading ${req.files.length} files to ${getStorageType()}...`);
+        
+        const uploadPromises = req.files.map(async (file) => {
+          try {
+            const cloudUrl = await uploadFile(file.buffer, file.originalname, file.mimetype);
+            return {
+              fileName: file.originalname,
+              fileUrl: cloudUrl,
+              fileType: file.mimetype,
+              fileSize: file.size,
+              uploadedAt: new Date()
+            };
+          } catch (error) {
+            console.error(`❌ Failed to upload ${file.originalname}:`, error.message);
+            throw error;
+          }
+        });
+        
+        newAttachments = await Promise.all(uploadPromises);
+        console.log('✅ All files uploaded to cloud storage');
+      } else {
+        // Fallback to local storage
+        newAttachments = req.files.map(file => ({
+          fileName: file.originalname,
+          fileUrl: `/api/uploads/${file.filename}`,
+          fileType: file.mimetype,
+          fileSize: file.size,
+          uploadedAt: new Date()
+        }));
+      }
+      
       req.body.attachments = [...(notice.attachments || []), ...newAttachments];
     }
 

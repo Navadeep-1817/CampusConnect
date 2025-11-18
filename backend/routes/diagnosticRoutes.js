@@ -85,8 +85,11 @@ router.get('/email-status', async (req, res) => {
  * Storage diagnostics
  * Checks file storage configuration and status
  */
-router.get('/storage-status', (req, res) => {
+router.get('/storage-status', async (req, res) => {
   try {
+    const { getStorageType, isGoogleDriveConfigured } = require('../services/fileStorage');
+    const googleDriveService = require('../services/googleDriveService');
+    
     const uploadDir = path.join(__dirname, '../uploads');
     const dirExists = fs.existsSync(uploadDir);
     
@@ -105,14 +108,34 @@ router.get('/storage-status', (req, res) => {
     }
     
     const s3Configured = isS3Configured();
+    const driveConfigured = isGoogleDriveConfigured();
+    const storageType = getStorageType();
     
-    res.json({
+    let storageTypeDisplay;
+    let recommendation;
+    
+    if (storageType === 'google-drive') {
+      storageTypeDisplay = 'Google Drive (Cloud Storage)';
+      recommendation = '✅ Using Google Drive - files persist across restarts (15GB free)';
+    } else if (storageType === 's3') {
+      storageTypeDisplay = 'AWS S3 (Cloud Storage)';
+      recommendation = '✅ Using AWS S3 - files persist across restarts';
+    } else {
+      storageTypeDisplay = 'Local Disk (Ephemeral)';
+      recommendation = '⚠️ WARNING: Using local storage - files WILL BE DELETED on server restart/redeploy!';
+    }
+    
+    const responseData = {
       success: true,
       timestamp: new Date().toISOString(),
-      storageType: s3Configured ? 'AWS S3 (Cloud Storage)' : 'Local Disk (Ephemeral)',
-      recommendation: s3Configured 
-        ? '✅ Using cloud storage - files persist across restarts'
-        : '⚠️ WARNING: Using local storage - files WILL BE DELETED on server restart/redeploy!',
+      storageType: storageTypeDisplay,
+      recommendation,
+      googleDrive: {
+        configured: driveConfigured,
+        serviceAccount: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || 'Not set',
+        folderId: process.env.GOOGLE_DRIVE_FOLDER_ID || 'Not set',
+        privateKeyConfigured: !!process.env.GOOGLE_PRIVATE_KEY
+      },
       s3: {
         configured: s3Configured,
         bucket: process.env.AWS_BUCKET_NAME || 'Not set',
@@ -135,7 +158,31 @@ router.get('/storage-status', (req, res) => {
         apiDownload: '/api/download/:filename',
         apiFiles: '/api/files/:filename (streaming)'
       }
-    });
+    };
+    
+    // Add Google Drive quota if configured
+    if (driveConfigured) {
+      try {
+        const quota = await googleDriveService.getStorageQuota();
+        responseData.googleDrive.quota = {
+          limitMB: quota.limitMB,
+          usageMB: quota.usageMB,
+          availableMB: quota.availableMB,
+          usagePercent: quota.usagePercent
+        };
+        
+        const driveFiles = await googleDriveService.listFiles(10);
+        responseData.googleDrive.filesCount = driveFiles.length;
+        responseData.googleDrive.recentFiles = driveFiles.map(f => ({
+          name: f.name,
+          sizeMB: f.size ? (f.size / (1024 * 1024)).toFixed(2) : 'N/A'
+        }));
+      } catch (error) {
+        responseData.googleDrive.error = `Failed to fetch Drive data: ${error.message}`;
+      }
+    }
+    
+    res.json(responseData);
   } catch (error) {
     res.status(500).json({
       success: false,

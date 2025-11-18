@@ -1,6 +1,12 @@
 const ChatRoom = require('../models/ChatRoom');
 const ChatMessage = require('../models/ChatMessage');
 const User = require('../models/User');
+const { 
+  uploadFile, 
+  deleteFile, 
+  isCloudStorageConfigured, 
+  getStorageType 
+} = require('../services/fileStorage');
 
 // @desc    Create chat room
 // @route   POST /api/chat/rooms
@@ -273,18 +279,43 @@ exports.sendMessage = async (req, res) => {
       messageType: messageType || 'text'
     };
 
-    // Handle file attachments with proper structure
+    // Handle file attachments - upload to cloud storage if configured
     if (req.files && req.files.length > 0) {
-      messageData.attachments = req.files.map(file => ({
-        filename: file.filename,
-        originalName: file.originalname,
-        mimeType: file.mimetype,
-        size: file.size,
-        fileUrl: `/api/uploads/${file.filename}`,
-        filePath: `/uploads/${file.filename}`,
-        uploadedAt: new Date()
-      }));
-      // If files are attached, set message type accordingly
+      if (isCloudStorageConfigured()) {
+        console.log(`☁️ Uploading ${req.files.length} chat files to ${getStorageType()}...`);
+        
+        // Upload files to Google Drive/S3
+        const uploadPromises = req.files.map(async (file) => {
+          try {
+            const cloudUrl = await uploadFile(file.buffer, file.originalname, file.mimetype);
+            return {
+              fileName: file.originalname,
+              fileUrl: cloudUrl,
+              fileType: file.mimetype,
+              fileSize: file.size,
+              uploadedAt: new Date()
+            };
+          } catch (error) {
+            console.error(`❌ Failed to upload chat file ${file.originalname}:`, error.message);
+            throw error;
+          }
+        });
+        
+        messageData.attachments = await Promise.all(uploadPromises);
+        console.log('✅ All chat files uploaded to cloud storage');
+      } else {
+        // Fallback to local storage
+        console.log('📁 Using local storage for chat files');
+        messageData.attachments = req.files.map(file => ({
+          fileName: file.originalname,
+          fileUrl: `/api/uploads/${file.filename}`,
+          fileType: file.mimetype,
+          fileSize: file.size,
+          uploadedAt: new Date()
+        }));
+      }
+      
+      // Set message type based on first file
       if (req.files[0].mimetype.startsWith('image/')) {
         messageData.messageType = 'image';
       } else {
@@ -347,6 +378,20 @@ exports.deleteMessage = async (req, res) => {
         success: false,
         message: 'Not authorized to delete this message'
       });
+    }
+
+    // Delete files from cloud storage if they exist
+    if (message.attachments && message.attachments.length > 0 && isCloudStorageConfigured()) {
+      console.log(`🗑️ Deleting ${message.attachments.length} files from ${getStorageType()}...`);
+      for (const attachment of message.attachments) {
+        try {
+          await deleteFile(attachment.fileUrl);
+          console.log(`✅ Deleted file: ${attachment.fileName}`);
+        } catch (error) {
+          console.error(`⚠️ Failed to delete file ${attachment.fileName}:`, error.message);
+          // Continue even if deletion fails
+        }
+      }
     }
 
     message.isDeleted = true;

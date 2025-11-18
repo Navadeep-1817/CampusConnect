@@ -1,5 +1,6 @@
 const AWS = require('aws-sdk');
 const path = require('path');
+const googleDriveService = require('./googleDriveService');
 
 /**
  * Check if S3 is properly configured
@@ -11,6 +12,24 @@ const isS3Configured = () => {
     process.env.AWS_SECRET_ACCESS_KEY &&
     process.env.AWS_BUCKET_NAME
   );
+};
+
+/**
+ * Check if any cloud storage is configured
+ * @returns {boolean}
+ */
+const isCloudStorageConfigured = () => {
+  return googleDriveService.isGoogleDriveConfigured() || isS3Configured();
+};
+
+/**
+ * Get the active storage type
+ * @returns {string} - 'google-drive', 's3', or 'local'
+ */
+const getStorageType = () => {
+  if (googleDriveService.isGoogleDriveConfigured()) return 'google-drive';
+  if (isS3Configured()) return 's3';
+  return 'local';
 };
 
 // Configure AWS S3 (only if credentials are provided)
@@ -26,10 +45,39 @@ if (isS3Configured()) {
   console.log('✅ AWS S3 configured for cloud storage');
   console.log(`   Bucket: ${process.env.AWS_BUCKET_NAME}`);
   console.log(`   Region: ${process.env.AWS_REGION || 'us-east-1'}`);
-} else {
-  console.log('⚠️  AWS S3 not configured - using local storage (ephemeral on Render!)');
-  console.log('   Set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_BUCKET_NAME to enable cloud storage');
 }
+
+// Log storage configuration on startup
+const storageType = getStorageType();
+if (storageType === 'google-drive') {
+  console.log('🚀 Using Google Drive for file storage (15GB free)');
+} else if (storageType === 's3') {
+  console.log('🚀 Using AWS S3 for file storage');
+} else {
+  console.log('⚠️  Using local storage (ephemeral on Render!)');
+  console.log('   Configure Google Drive or AWS S3 for persistent cloud storage');
+  console.log('   Google Drive: Set GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY, GOOGLE_DRIVE_FOLDER_ID');
+  console.log('   AWS S3: Set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_BUCKET_NAME');
+}
+
+/**
+ * Upload file to cloud storage (Google Drive or S3) with automatic detection
+ * @param {Buffer} fileBuffer - File buffer from multer memory storage
+ * @param {string} fileName - Original file name
+ * @param {string} mimeType - File MIME type
+ * @returns {Promise<string>} - File URL
+ */
+const uploadFile = async (fileBuffer, fileName, mimeType) => {
+  const storageType = getStorageType();
+  
+  if (storageType === 'google-drive') {
+    return await googleDriveService.uploadToGoogleDrive(fileBuffer, fileName, mimeType);
+  } else if (storageType === 's3') {
+    return await uploadToS3(fileBuffer, fileName, mimeType);
+  } else {
+    throw new Error('No cloud storage configured. Set up Google Drive or AWS S3.');
+  }
+};
 
 /**
  * Upload file to S3
@@ -66,6 +114,26 @@ const uploadToS3 = async (fileBuffer, fileName, mimeType) => {
   } catch (error) {
     console.error('❌ S3 upload failed:', error.message);
     throw new Error(`Failed to upload to S3: ${error.message}`);
+  }
+};
+
+/**
+ * Delete file from cloud storage (Google Drive or S3) with automatic detection
+ * @param {string} fileUrl - Full URL
+ * @returns {Promise<void>}
+ */
+const deleteFile = async (fileUrl) => {
+  if (!fileUrl) {
+    throw new Error('File URL is required for deletion');
+  }
+  
+  // Detect storage type from URL
+  if (fileUrl.includes('drive.google.com')) {
+    return await googleDriveService.deleteFromGoogleDrive(fileUrl);
+  } else if (fileUrl.includes('s3.amazonaws.com') || fileUrl.includes('amazonaws.com')) {
+    return await deleteFromS3(fileUrl);
+  } else {
+    throw new Error('Unknown storage type. Cannot delete file.');
   }
 };
 
@@ -226,6 +294,13 @@ const getS3FileMetadata = async (key) => {
 };
 
 module.exports = {
+  // Unified cloud storage interface (auto-detects Google Drive or S3)
+  uploadFile,
+  deleteFile,
+  isCloudStorageConfigured,
+  getStorageType,
+  
+  // S3-specific functions (for direct usage if needed)
   uploadToS3,
   deleteFromS3,
   getSignedUrl,
@@ -234,5 +309,12 @@ module.exports = {
   listS3Files,
   getS3FileMetadata,
   isS3Configured,
-  s3 // Export S3 instance for advanced usage
+  s3, // Export S3 instance for advanced usage
+  
+  // Google Drive functions (re-export for convenience)
+  uploadToGoogleDrive: googleDriveService.uploadToGoogleDrive,
+  deleteFromGoogleDrive: googleDriveService.deleteFromGoogleDrive,
+  isGoogleDriveConfigured: googleDriveService.isGoogleDriveConfigured,
+  listGoogleDriveFiles: googleDriveService.listFiles,
+  getGoogleDriveQuota: googleDriveService.getStorageQuota,
 };
