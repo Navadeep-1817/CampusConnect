@@ -15,23 +15,15 @@ export const noticeAPI = {
 
   // Create new notice (with FormData support for file uploads)
   createNotice: async (noticeData) => {
-    const config = noticeData instanceof FormData ? {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    } : {};
-    const response = await axiosInstance.post('/notices', noticeData, config);
+    // Do NOT set Content-Type header manually - let browser set it with boundary
+    const response = await axiosInstance.post('/notices', noticeData);
     return response.data;
   },
 
   // Update notice (with FormData support for file uploads)
   updateNotice: async (noticeId, noticeData) => {
-    const config = noticeData instanceof FormData ? {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    } : {};
-    const response = await axiosInstance.put(`/notices/${noticeId}`, noticeData, config);
+    // Do NOT set Content-Type header manually - let browser set it with boundary
+    const response = await axiosInstance.put(`/notices/${noticeId}`, noticeData);
     return response.data;
   },
 

@@ -156,43 +156,53 @@ const NoticeForm = () => {
     setSubmitting(true);
 
     try {
-      // Clean up the data before sending
-      const submitData = {
-        title: formData.title.trim(),
-        content: formData.content.trim(),
-        category: formData.category,
-        priority: formData.priority,
-        visibility: formData.visibility,
-        postedBy: user._id,
-        externalLinks: formData.externalLinks || [],
-        attachments: formData.attachments || []
-      };
+      // Create FormData for file upload support
+      const submitData = new FormData();
+      
+      // Add text fields
+      submitData.append('title', formData.title.trim());
+      submitData.append('content', formData.content.trim());
+      submitData.append('category', formData.category);
+      submitData.append('priority', formData.priority);
+      submitData.append('visibility', formData.visibility);
+      
+      // Add externalLinks as JSON string
+      submitData.append('externalLinks', JSON.stringify(formData.externalLinks || []));
 
       // Only add department if visibility requires it
       const requiresDept = ['department', 'batch', 'class', 'faculty_department', 'admin_department'];
       if (requiresDept.includes(formData.visibility)) {
         // For local admin, always use their department
         if (user?.role === 'local_admin') {
-          submitData.department = user.department?._id || user.department;
+          submitData.append('department', user.department?._id || user.department);
         } else if (formData.department) {
-          submitData.department = formData.department;
+          submitData.append('department', formData.department);
         }
       }
 
       // Only add targetYear if visibility is batch or class
       if ((formData.visibility === 'batch' || formData.visibility === 'class') && formData.targetYear) {
-        submitData.targetYear = parseInt(formData.targetYear);
+        submitData.append('targetYear', parseInt(formData.targetYear));
       }
 
       // Only add targetBatch if visibility is class
       if (formData.visibility === 'class' && formData.targetBatch) {
-        submitData.targetBatch = formData.targetBatch;
+        submitData.append('targetBatch', formData.targetBatch);
       }
 
       // Only add expiryDate if provided
       if (formData.expiryDate) {
-        submitData.expiryDate = formData.expiryDate;
+        submitData.append('expiryDate', formData.expiryDate);
       }
+
+      // Add file attachments
+      if (formData.attachments && formData.attachments.length > 0) {
+        formData.attachments.forEach((file) => {
+          submitData.append('attachments', file);
+        });
+      }
+
+      console.log('Submitting notice with files:', formData.attachments.length);
 
       if (isEdit) {
         await noticeAPI.updateNotice(id, submitData);

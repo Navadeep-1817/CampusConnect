@@ -23,10 +23,8 @@ export const chatAPI = {
 
   // Send message
   sendMessage: async (roomId, messageData) => {
-    const config = messageData instanceof FormData 
-      ? { headers: { 'Content-Type': 'multipart/form-data' } }
-      : {};
-    const response = await axiosInstance.post(`/chat/rooms/${roomId}/messages`, messageData, config);
+    // Do NOT set Content-Type header manually - let browser set it with boundary for FormData
+    const response = await axiosInstance.post(`/chat/rooms/${roomId}/messages`, messageData);
     return response.data;
   },
 

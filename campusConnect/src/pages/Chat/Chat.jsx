@@ -175,23 +175,32 @@ const Chat = () => {
       setSending(true);
       try {
         const formData = new FormData();
-        formData.append('message', newMessage);
-        formData.append('messageType', 'file');
+        formData.append('message', newMessage.trim());
         
+        // Determine message type
+        const hasImages = selectedFiles.some(f => f.type.startsWith('image/'));
+        formData.append('messageType', hasImages ? 'image' : 'file');
+        
+        // Append all files
         selectedFiles.forEach(file => {
           formData.append('attachments', file);
         });
 
+        console.log('Uploading files:', selectedFiles.map(f => f.name));
+
         const response = await chatAPI.sendMessage(selectedRoom._id, formData);
-        // Socket will handle adding the message to UI
+        
+        // Clear inputs
         setNewMessage('');
         setSelectedFiles([]);
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
         }
+        
+        toast.success('Message sent with attachments!');
       } catch (error) {
         console.error('Send message error:', error);
-        toast.error('Failed to send message');
+        toast.error(error.response?.data?.message || 'Failed to send message');
       } finally {
         setSending(false);
       }
