@@ -282,27 +282,40 @@ exports.sendMessage = async (req, res) => {
     // Handle file attachments - upload to cloud storage if configured
     if (req.files && req.files.length > 0) {
       if (isCloudStorageConfigured()) {
-        console.log(`☁️ Uploading ${req.files.length} chat files to ${getStorageType()}...`);
-        
-        // Upload files to Google Drive/S3
-        const uploadPromises = req.files.map(async (file) => {
-          try {
-            const cloudUrl = await uploadFile(file.buffer, file.originalname, file.mimetype);
-            return {
-              fileName: file.originalname,
-              fileUrl: cloudUrl,
-              fileType: file.mimetype,
-              fileSize: file.size,
-              uploadedAt: new Date()
-            };
-          } catch (error) {
-            console.error(`❌ Failed to upload chat file ${file.originalname}:`, error.message);
-            throw error;
-          }
-        });
-        
-        messageData.attachments = await Promise.all(uploadPromises);
-        console.log('✅ All chat files uploaded to cloud storage');
+        try {
+          console.log(`☁️ Uploading ${req.files.length} chat files to ${getStorageType()}...`);
+          
+          // Upload files to Google Drive/S3
+          const uploadPromises = req.files.map(async (file) => {
+            try {
+              const cloudUrl = await uploadFile(file.buffer, file.originalname, file.mimetype);
+              return {
+                fileName: file.originalname,
+                fileUrl: cloudUrl,
+                fileType: file.mimetype,
+                fileSize: file.size,
+                uploadedAt: new Date()
+              };
+            } catch (error) {
+              console.error(`❌ Failed to upload chat file ${file.originalname}:`, error.message);
+              throw error;
+            }
+          });
+          
+          messageData.attachments = await Promise.all(uploadPromises);
+          console.log('✅ All chat files uploaded to cloud storage');
+        } catch (cloudError) {
+          console.error('❌ Cloud storage upload failed, falling back to local storage:', cloudError.message);
+          // Fallback to local storage if cloud upload fails
+          messageData.attachments = req.files.map(file => ({
+            fileName: file.originalname,
+            fileUrl: file.filename ? `/api/uploads/${file.filename}` : null,
+            fileType: file.mimetype,
+            fileSize: file.size,
+            uploadedAt: new Date(),
+            error: 'Cloud storage failed, using local storage'
+          })).filter(att => att.fileUrl); // Only include files that were saved locally
+        }
       } else {
         // Fallback to local storage
         console.log('📁 Using local storage for chat files');

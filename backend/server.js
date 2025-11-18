@@ -263,8 +263,23 @@ app.use((req, res, next) => {
   });
 });
 
-// Error handler (must be absolute last)
-app.use(errorHandler);
+// Enhanced error handler with guaranteed CORS headers
+app.use((err, req, res, next) => {
+  // Always ensure CORS headers are sent
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.indexOf(origin) !== -1) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Log error
+  console.error('❌ Error caught by middleware:', err.message);
+  console.error('   Stack:', err.stack);
+  
+  // Call original error handler
+  errorHandler(err, req, res, next);
+});
+
 
 // Start cron jobs for email notifications
 const { startCronJobs } = require('./services/cronJobs');

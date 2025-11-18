@@ -13,12 +13,40 @@ const isGoogleDriveConfigured = () => {
   );
 };
 
+/**
+ * Validate private key format
+ * @param {string} key - Private key to validate
+ * @returns {object} Validation result
+ */
+const validatePrivateKey = (key) => {
+  if (!key) return { valid: false, error: 'Private key is missing' };
+  
+  const hasBeginMarker = key.includes('BEGIN PRIVATE KEY');
+  const hasEndMarker = key.includes('END PRIVATE KEY');
+  
+  if (!hasBeginMarker || !hasEndMarker) {
+    return { 
+      valid: false, 
+      error: 'Private key must include -----BEGIN PRIVATE KEY----- and -----END PRIVATE KEY----- markers' 
+    };
+  }
+  
+  return { valid: true };
+};
+
 // Initialize Google Drive API
 let drive = null;
 let auth = null;
+let initializationError = null;
 
 if (isGoogleDriveConfigured()) {
   try {
+    // Validate private key format before proceeding
+    const validation = validatePrivateKey(process.env.GOOGLE_PRIVATE_KEY);
+    if (!validation.valid) {
+      throw new Error(`Invalid private key format: ${validation.error}`);
+    }
+    
     // Parse the private key (handle escaped newlines from environment variables)
     const privateKey = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
     
@@ -37,7 +65,10 @@ if (isGoogleDriveConfigured()) {
     console.log(`   Folder ID: ${process.env.GOOGLE_DRIVE_FOLDER_ID}`);
   } catch (error) {
     console.error('❌ Failed to initialize Google Drive:', error.message);
+    console.error('   Please check your GOOGLE_PRIVATE_KEY format in .env file');
+    initializationError = error.message;
     drive = null;
+    auth = null;
   }
 } else {
   console.log('⚠️  Google Drive not configured - using local/S3 storage');
@@ -53,7 +84,10 @@ if (isGoogleDriveConfigured()) {
  */
 const uploadToGoogleDrive = async (fileBuffer, fileName, mimeType) => {
   if (!drive) {
-    throw new Error('Google Drive not configured. Set GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY, and GOOGLE_DRIVE_FOLDER_ID.');
+    const errorMsg = initializationError 
+      ? `Google Drive initialization failed: ${initializationError}`
+      : 'Google Drive not configured. Set GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY, and GOOGLE_DRIVE_FOLDER_ID.';
+    throw new Error(errorMsg);
   }
   
   try {
