@@ -187,6 +187,10 @@ app.get('/api/files/:filename', (req, res) => {
   });
 });
 
+// Diagnostic Routes (for debugging production issues)
+const diagnosticRoutes = require('./routes/diagnosticRoutes');
+app.use('/api/diagnostics', diagnosticRoutes);
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);

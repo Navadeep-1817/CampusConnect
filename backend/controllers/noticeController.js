@@ -140,10 +140,15 @@ exports.createNotice = async (req, res) => {
     console.log('✅ Notice fully populated:', notice);
 
     // Send email notifications to relevant users (asynchronously, don't wait)
-    if (process.env.ENABLE_EMAIL_NOTIFICATIONS === 'true') {
-      sendNoticeEmails(notice).catch(err => 
-        console.error('❌ Email sending failed:', err.message)
+    const emailEnabled = process.env.ENABLE_EMAIL_NOTIFICATIONS === 'true';
+    console.log('🔔 Email notifications enabled:', emailEnabled);
+    if (emailEnabled) {
+      // Fire-and-forget but log errors
+      sendNoticeEmails(notice).catch(err =>
+        console.error('❌ Email sending failed:', err && err.message ? err.message : err)
       );
+    } else {
+      console.log('ℹ️ Skipping email notifications because ENABLE_EMAIL_NOTIFICATIONS is not set to "true"');
     }
 
     res.status(201).json({
@@ -595,10 +600,10 @@ async function sendNoticeEmails(notice) {
       return;
     }
 
-    console.log(`📬 Sending emails to ${users.length} user(s)`);
+    console.log(`📬 Preparing to send emails to ${users.length} user(s)`);
 
-    // Send emails in batches
-    const emailPromises = users.map(user => 
+    // Send emails and interpret sendEmail response (which returns {success: true/false})
+    const emailPromises = users.map(user =>
       sendEmail({
         to: user.email,
         subject: `${notice.priority === 'urgent' ? '⚠️ URGENT: ' : ''}New Notice: ${notice.title}`,
@@ -606,12 +611,24 @@ async function sendNoticeEmails(notice) {
       })
     );
 
-    const results = await Promise.allSettled(emailPromises);
-    
-    const successCount = results.filter(r => r.status === 'fulfilled').length;
-    const failCount = results.filter(r => r.status === 'rejected').length;
-    
+    const results = await Promise.all(emailPromises.map(p => p.catch(err => ({ success: false, error: err && err.message ? err.message : err }))));
+
+    const successCount = results.filter(r => r && r.success).length;
+    const failCount = results.length - successCount;
+
+    // Map failures with email addresses and errors
+    const failures = [];
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      if (!r || !r.success) {
+        failures.push({ email: users[i].email, error: r && r.error ? r.error : 'Unknown error' });
+      }
+    }
+
     console.log(`✅ Email notifications sent: ${successCount} success, ${failCount} failed`);
+    if (failures.length > 0) {
+      console.error('❌ Email failures:', failures.slice(0, 10));
+    }
   } catch (error) {
     console.error('❌ Error in sendNoticeEmails:', error.message);
   }
