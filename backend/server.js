@@ -255,6 +255,36 @@ setupSocketIO(io);
 // Make io accessible to routes
 app.set('io', io);
 
+// SPA CATCH-ALL ROUTE - Serve React app for all non-API routes
+// This MUST come BEFORE the 404 handler to fix production refresh bug
+app.get('*', (req, res, next) => {
+  // Only serve index.html for non-API routes
+  if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) {
+    return next(); // Let it hit the 404 handler below
+  }
+  
+  // In production, serve the built React app
+  if (process.env.NODE_ENV === 'production') {
+    const frontendPath = path.join(__dirname, '../campusConnect/dist');
+    const indexPath = path.join(frontendPath, 'index.html');
+    
+    // Check if index.html exists
+    const fs = require('fs');
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      // If build folder doesn't exist, show helpful message
+      res.status(503).json({
+        success: false,
+        message: 'Frontend build not found. Run npm run build in campusConnect directory.'
+      });
+    }
+  } else {
+    // In development, let the 404 handler take over
+    next();
+  }
+});
+
 // Handle 404 - MUST be after all routes
 app.use((req, res, next) => {
   res.status(404).json({

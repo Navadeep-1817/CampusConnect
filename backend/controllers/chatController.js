@@ -301,11 +301,14 @@ exports.sendMessage = async (req, res) => {
       if (isCloudStorageConfigured()) {
         try {
           console.log(`☁️ Uploading ${req.files.length} chat files to ${getStorageType()}...`);
+          console.log('📁 Files to upload:', req.files.map(f => ({ name: f.originalname, type: f.mimetype, size: f.size })));
           
           // Upload files to Google Drive/S3
           const uploadPromises = req.files.map(async (file) => {
             try {
+              console.log(`⬆️  Uploading file: ${file.originalname}`);
               const cloudUrl = await uploadFile(file.buffer, file.originalname, file.mimetype);
+              console.log(`✅ File uploaded successfully: ${file.originalname} -> ${cloudUrl}`);
               return {
                 fileName: file.originalname,
                 fileUrl: cloudUrl,
@@ -321,6 +324,7 @@ exports.sendMessage = async (req, res) => {
           
           messageData.attachments = await Promise.all(uploadPromises);
           console.log('✅ All chat files uploaded to cloud storage');
+          console.log('📎 Attachments array:', messageData.attachments);
         } catch (cloudError) {
           console.error('❌ Cloud storage upload failed, falling back to local storage:', cloudError.message);
           // Fallback to local storage if cloud upload fails
@@ -366,7 +370,15 @@ exports.sendMessage = async (req, res) => {
     // Emit message via socket.io for real-time delivery
     const io = req.app.get('io');
     if (io) {
-      io.to(`chat-${req.params.id}`).emit('new-message', chatMessage);
+      // Convert mongoose document to plain object to ensure all fields are emitted
+      const messageObject = chatMessage.toObject();
+      console.log('📤 Emitting chat message via socket:', {
+        id: messageObject._id,
+        type: messageObject.messageType,
+        hasAttachments: !!(messageObject.attachments && messageObject.attachments.length > 0),
+        attachmentCount: messageObject.attachments?.length || 0
+      });
+      io.to(`chat-${req.params.id}`).emit('new-message', messageObject);
     }
 
     res.status(201).json({

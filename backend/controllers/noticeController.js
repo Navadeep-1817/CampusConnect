@@ -124,12 +124,15 @@ exports.createNotice = async (req, res) => {
     if (req.files && req.files.length > 0) {
       if (isCloudStorageConfigured()) {
         try {
-          console.log(`☁️ Uploading ${req.files.length} files to ${getStorageType()}...`);
+          console.log(`☁️ Uploading ${req.files.length} notice files to ${getStorageType()}...`);
+          console.log('📁 Files to upload:', req.files.map(f => ({ name: f.originalname, type: f.mimetype, size: f.size })));
           
           // Upload files to cloud storage (Google Drive or S3)
           const uploadPromises = req.files.map(async (file) => {
             try {
+              console.log(`⬆️  Uploading notice file: ${file.originalname}`);
               const cloudUrl = await uploadFile(file.buffer, file.originalname, file.mimetype);
+              console.log(`✅ Notice file uploaded successfully: ${file.originalname} -> ${cloudUrl}`);
               return {
                 fileName: file.originalname,
                 fileUrl: cloudUrl,
@@ -139,12 +142,14 @@ exports.createNotice = async (req, res) => {
               };
             } catch (error) {
               console.error(`❌ Failed to upload ${file.originalname}:`, error.message);
+              console.error('   Full error:', error.stack);
               throw error;
             }
           });
           
           noticeData.attachments = await Promise.all(uploadPromises);
-          console.log('✅ All files uploaded to cloud storage');
+          console.log('✅ All notice files uploaded to cloud storage');
+          console.log('📎 Notice attachments array:', noticeData.attachments);
         } catch (cloudError) {
           console.error('❌ Cloud storage upload failed, falling back to local storage:', cloudError.message);
           // Fallback to local storage if cloud upload fails
