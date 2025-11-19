@@ -26,7 +26,15 @@ const upload = require('../middleware/upload');
 
 router.route('/rooms/:id/messages')
   .get(getChatMessages)
-  .post(upload.array('attachments', 5), sendMessage);
+  .post((req, res, next) => {
+    // Only apply multer if Content-Type is multipart/form-data
+    const contentType = req.headers['content-type'] || '';
+    if (contentType.includes('multipart/form-data')) {
+      upload.array('attachments', 5)(req, res, next);
+    } else {
+      next();
+    }
+  }, sendMessage);
 
 router.route('/rooms/:id/read')
   .put(markAsRead);

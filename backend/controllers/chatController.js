@@ -270,7 +270,24 @@ exports.getChatMessages = async (req, res) => {
 // @access  Private
 exports.sendMessage = async (req, res) => {
   try {
+    // Validate authentication
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
     const { message, messageType } = req.body;
+
+    // Validate chat room exists
+    const roomExists = await ChatRoom.findById(req.params.id);
+    if (!roomExists) {
+      return res.status(404).json({
+        success: false,
+        message: 'Chat room not found'
+      });
+    }
 
     const messageData = {
       chatRoom: req.params.id,
@@ -357,10 +374,14 @@ exports.sendMessage = async (req, res) => {
       data: chatMessage
     });
   } catch (error) {
-    console.error('Send message error:', error);
-    res.status(500).json({
+    console.error('❌ Send message error:', error);
+    
+    // Always return a proper JSON error response
+    const statusCode = error.name === 'ValidationError' ? 400 : 500;
+    res.status(statusCode).json({
       success: false,
-      message: 'Error sending message'
+      message: error.message || 'Error sending message',
+      error: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };

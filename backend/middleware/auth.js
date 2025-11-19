@@ -12,6 +12,7 @@ exports.protect = async (req, res, next) => {
     }
 
     if (!token) {
+      console.log('❌ No token provided in request');
       return res.status(401).json({
         success: false,
         message: 'Not authorized to access this route'
@@ -22,31 +23,41 @@ exports.protect = async (req, res, next) => {
       // Verify token
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       
-      // Get user from token
-      req.user = await User.findById(decoded.id).select('-password');
+      // Get user from token with timeout
+      const user = await Promise.race([
+        User.findById(decoded.id).select('-password'),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Database query timeout')), 5000)
+        )
+      ]);
       
-      if (!req.user) {
+      if (!user) {
+        console.log('❌ User not found for token');
         return res.status(401).json({
           success: false,
           message: 'User not found'
         });
       }
 
-      if (!req.user.isActive) {
+      if (!user.isActive) {
+        console.log('❌ User account deactivated');
         return res.status(401).json({
           success: false,
           message: 'User account is deactivated'
         });
       }
 
+      req.user = user;
       next();
     } catch (err) {
+      console.log('❌ Token verification failed:', err.message);
       return res.status(401).json({
         success: false,
         message: 'Invalid token'
       });
     }
   } catch (error) {
+    console.error('❌ Auth middleware error:', error);
     return res.status(500).json({
       success: false,
       message: 'Server error in authentication'
