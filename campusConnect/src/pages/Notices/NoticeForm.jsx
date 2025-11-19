@@ -18,13 +18,21 @@ const NoticeForm = () => {
   const [submitting, setSubmitting] = useState(false);
   const [departments, setDepartments] = useState([]);
   
+  // Set initial visibility based on user role to avoid invalid state
+  const getInitialVisibility = () => {
+    if (user?.role === 'local_admin') {
+      return 'department'; // local_admin can't create global notices
+    }
+    return 'global'; // central_admin and faculty can
+  };
+  
   const [formData, setFormData] = useState({
     title: '',
     content: '',
     category: 'Academic',
     priority: 'medium',
-    visibility: 'global',
-    department: '',
+    visibility: getInitialVisibility(),
+    department: user?.role === 'local_admin' ? (user.department?._id || user.department || '') : '',
     targetYear: '',
     targetBatch: '',
     expiryDate: '',
@@ -209,7 +217,24 @@ const NoticeForm = () => {
         });
       }
 
-      console.log('Submitting notice with files:', formData.attachments.length);
+      // Debug: Log what we're submitting
+      console.log('📝 Submitting notice:', {
+        files: formData.attachments.length,
+        visibility: formData.visibility,
+        category: formData.category,
+        title: formData.title,
+        hasContent: !!formData.content
+      });
+      
+      // Log ALL FormData entries to debug
+      console.log('📤 FormData entries being sent:');
+      for (let [key, value] of submitData.entries()) {
+        if (value instanceof File) {
+          console.log(`  ${key}:`, value.name, `(${value.size} bytes)`);
+        } else {
+          console.log(`  ${key}:`, value);
+        }
+      }
 
       if (isEdit) {
         await noticeAPI.updateNotice(id, submitData);

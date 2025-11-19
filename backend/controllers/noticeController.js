@@ -21,6 +21,13 @@ exports.createNotice = async (req, res) => {
       files: req.files,
       user: { id: req.user._id, role: req.user.role, department: req.user.department }
     });
+    
+    console.log('🔍 Detailed req.body inspection:');
+    console.log('  title:', req.body.title, typeof req.body.title);
+    console.log('  content:', req.body.content, typeof req.body.content);
+    console.log('  category:', req.body.category, typeof req.body.category);
+    console.log('  visibility:', req.body.visibility, typeof req.body.visibility);
+    console.log('  All keys in req.body:', Object.keys(req.body));
 
     let {
       title,
@@ -51,13 +58,31 @@ exports.createNotice = async (req, res) => {
       externalLinks = [];
     }
 
-    // Validation
+    // Validation with detailed logging
+    console.log('🔍 Validation check:');
+    console.log('  title exists:', !!title, '| value:', title);
+    console.log('  content exists:', !!content, '| value:', content?.substring(0, 50));
+    console.log('  category exists:', !!category, '| value:', category);
+    console.log('  visibility exists:', !!visibility, '| value:', visibility);
+    
     if (!title || !content || !category || !visibility) {
+      const missing = [];
+      if (!title) missing.push('title');
+      if (!content) missing.push('content');
+      if (!category) missing.push('category');
+      if (!visibility) missing.push('visibility');
+      
+      console.error('❌ Validation failed. Missing fields:', missing);
+      console.error('   Received values:', { title, content, category, visibility });
+      
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields: title, content, category, or visibility'
+        message: `Missing required fields: ${missing.join(', ')}`,
+        receivedFields: Object.keys(req.body)
       });
     }
+    
+    console.log('✅ Validation passed');
 
     // Authorization checks
     if (req.user.role === 'student') {
