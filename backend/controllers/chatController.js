@@ -270,8 +270,19 @@ exports.getChatMessages = async (req, res) => {
 // @access  Private
 exports.sendMessage = async (req, res) => {
   try {
+    console.log('📨 Send message request:', {
+      hasUser: !!req.user,
+      userId: req.user?._id,
+      roomId: req.params.id,
+      hasFiles: !!(req.files && req.files.length > 0),
+      fileCount: req.files?.length || 0,
+      messageType: req.body.messageType,
+      contentType: req.headers['content-type']?.substring(0, 50)
+    });
+
     // Validate authentication
     if (!req.user || !req.user._id) {
+      console.error('❌ Chat message: No user authenticated');
       return res.status(401).json({
         success: false,
         message: 'Authentication required'
