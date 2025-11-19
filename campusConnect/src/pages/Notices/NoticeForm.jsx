@@ -38,13 +38,20 @@ const NoticeForm = () => {
     fetchDepartments();
     if (isEdit) {
       fetchNotice();
-    } else if (user?.role === 'local_admin' && user?.department) {
-      // Auto-set department for local admin
-      setFormData(prev => ({
-        ...prev,
-        department: user.department._id || user.department,
-        visibility: 'department'
-      }));
+    } else if (user) {
+      // Set appropriate defaults based on user role
+      if (user.role === 'local_admin' && user.department) {
+        setFormData(prev => ({
+          ...prev,
+          visibility: 'department',
+          department: user.department._id || user.department
+        }));
+      } else if (user.role === 'faculty') {
+        setFormData(prev => ({
+          ...prev,
+          visibility: 'global'
+        }));
+      }
     }
   }, [id, user]);
 

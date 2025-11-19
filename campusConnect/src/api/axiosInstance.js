@@ -3,9 +3,8 @@ import axios from 'axios';
 const axiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
   timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  // DO NOT set Content-Type here - let browser set it automatically
+  // This is critical for FormData to work with proper boundary
 });
 
 // Request interceptor to add auth token
