@@ -19,6 +19,19 @@ axiosInstance.interceptors.request.use(
     // This prevents the Authorization header from being stripped
     if (config.data instanceof FormData) {
       delete config.headers['Content-Type'];
+      
+      // Debug: Log FormData size
+      console.log('🔍 Axios sending FormData:');
+      let totalSize = 0;
+      for (let [key, value] of config.data.entries()) {
+        if (value instanceof File) {
+          console.log(`  ${key}: ${value.name} (${value.size} bytes)`);
+          totalSize += value.size;
+        } else {
+          console.log(`  ${key}: ${value}`);
+        }
+      }
+      console.log(`  Total size: ${totalSize} bytes`);
     }
     
     return config;

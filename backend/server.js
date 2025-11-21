@@ -83,8 +83,21 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// CRITICAL FIX: Only parse JSON and urlencoded for non-multipart requests
+// This prevents body parsers from consuming the stream before multer
+app.use((req, res, next) => {
+  const contentType = req.headers['content-type'] || '';
+  if (contentType.includes('multipart/form-data')) {
+    // Skip body parsing for multipart - let multer handle it
+    console.log('⏭️  Skipping body parsing for multipart/form-data');
+    return next();
+  }
+  express.json()(req, res, () => {
+    express.urlencoded({ extended: true })(req, res, next);
+  });
+});
+
 app.use(cookieParser());
 
 // Logging

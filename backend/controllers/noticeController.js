@@ -2,6 +2,8 @@ const Notice = require('../models/Notice');
 const Acknowledgment = require('../models/Acknowledgment');
 const User = require('../models/User');
 const mongoose = require('mongoose');
+const fs = require('fs');
+const path = require('path');
 const { sendEmail, sendBulkEmails } = require('../services/emailService');
 const { noticeEmailTemplate } = require('../templates/emailTemplates');
 const { 
@@ -205,15 +207,50 @@ exports.createNotice = async (req, res) => {
           console.log('📎 Notice attachments array:', noticeData.attachments);
         } catch (cloudError) {
           console.error('❌ Cloud storage upload failed, falling back to local storage:', cloudError.message);
-          // Fallback to local storage if cloud upload fails
-          noticeData.attachments = req.files.map(file => ({
-            fileName: file.originalname,
-            fileUrl: file.filename ? `/api/uploads/${file.filename}` : null,
-            fileType: file.mimetype,
-            fileSize: file.size,
-            uploadedAt: new Date(),
-            error: 'Cloud storage failed, using local storage'
-          })).filter(att => att.fileUrl); // Only include files that were saved locally
+
+          // Fallback to local storage if cloud upload fails.
+          // When using memoryStorage for multer (Google Drive/S3 path), files do not have
+          // a filename on disk, so we must save the buffers manually.
+          const uploadDir = path.join(__dirname, '../uploads');
+          if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+          }
+
+          noticeData.attachments = req.files.map(file => {
+            let localFilename = file.filename; // Present only when using diskStorage
+
+            if (!localFilename && file.buffer) {
+              const ext = path.extname(file.originalname) || '';
+              const baseName = path.basename(file.originalname, ext)
+                .replace(/[^a-z0-9_-]+/gi, '_')
+                .substring(0, 50);
+              const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+              localFilename = `notice-${uniqueSuffix}-${baseName}${ext}`;
+
+              const fullPath = path.join(uploadDir, localFilename);
+              try {
+                fs.writeFileSync(fullPath, file.buffer);
+                console.log('📁 Saved attachment locally after cloud failure:', fullPath);
+              } catch (writeErr) {
+                console.error('❌ Failed to save file locally after cloud failure:', writeErr.message);
+                return null;
+              }
+            }
+
+            if (!localFilename) {
+              // Nothing to reference
+              return null;
+            }
+
+            return {
+              fileName: file.originalname,
+              fileUrl: `/api/uploads/${localFilename}`,
+              fileType: file.mimetype,
+              fileSize: file.size,
+              uploadedAt: new Date(),
+              error: 'Cloud storage failed, using local storage'
+            };
+          }).filter(Boolean);
         }
       } else {
         // Fallback to local storage (for development)

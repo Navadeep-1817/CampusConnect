@@ -15,11 +15,15 @@ const isS3Configured = () => {
 };
 
 /**
- * Check if any cloud storage is configured
+ * Check if any cloud storage is configured and ready
+ * Uses actual Google Drive/S3 initialization state instead of only env vars
  * @returns {boolean}
  */
 const isCloudStorageConfigured = () => {
-  return googleDriveService.isGoogleDriveConfigured() || isS3Configured();
+  // Google Drive is considered ready only if the Drive client was initialized
+  const driveReady = !!googleDriveService.drive;
+  const s3Ready = isS3Configured();
+  return driveReady || s3Ready;
 };
 
 /**
@@ -27,7 +31,7 @@ const isCloudStorageConfigured = () => {
  * @returns {string} - 'google-drive', 's3', or 'local'
  */
 const getStorageType = () => {
-  if (googleDriveService.isGoogleDriveConfigured()) return 'google-drive';
+  if (googleDriveService.drive) return 'google-drive';
   if (isS3Configured()) return 's3';
   return 'local';
 };

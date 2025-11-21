@@ -5,10 +5,8 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 // Create axios instance
 const axiosInstance = axios.create({
   baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json'
-  },
   withCredentials: true
+  // DO NOT set Content-Type here - let browser set it automatically for FormData
 });
 
 // Request interceptor to add token
@@ -18,6 +16,12 @@ axiosInstance.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // Set Content-Type only for non-FormData requests
+    if (!(config.data instanceof FormData)) {
+      config.headers['Content-Type'] = 'application/json';
+    }
+    
     return config;
   },
   (error) => {
@@ -73,34 +77,48 @@ export const noticeAPI = {
   getNotices: (params) => axiosInstance.get('/notices', { params }),
   getNotice: (id) => axiosInstance.get(`/notices/${id}`),
   createNotice: (data) => {
-    const formData = new FormData();
-    Object.keys(data).forEach(key => {
-      if (key === 'attachments' && data[key]) {
-        data[key].forEach(file => formData.append('attachments', file));
-      } else if (key === 'externalLinks') {
-        formData.append(key, JSON.stringify(data[key]));
-      } else {
-        formData.append(key, data[key]);
-      }
-    });
-    return axiosInstance.post('/notices', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    });
+    // Allow both plain objects and pre-built FormData (e.g., from NoticeForm.jsx)
+    let formData;
+
+    if (data instanceof FormData) {
+      formData = data;
+    } else {
+      formData = new FormData();
+      Object.keys(data || {}).forEach(key => {
+        if (key === 'attachments' && data[key]) {
+          data[key].forEach(file => formData.append('attachments', file));
+        } else if (key === 'externalLinks') {
+          formData.append(key, JSON.stringify(data[key] || []));
+        } else if (data[key] !== undefined && data[key] !== null) {
+          formData.append(key, data[key]);
+        }
+      });
+    }
+
+    // Do NOT set Content-Type here - let browser/axios set it with the correct boundary
+    return axiosInstance.post('/notices', formData);
   },
   updateNotice: (id, data) => {
-    const formData = new FormData();
-    Object.keys(data).forEach(key => {
-      if (key === 'attachments' && data[key]) {
-        data[key].forEach(file => formData.append('attachments', file));
-      } else if (key === 'externalLinks') {
-        formData.append(key, JSON.stringify(data[key]));
-      } else {
-        formData.append(key, data[key]);
-      }
-    });
-    return axiosInstance.put(`/notices/${id}`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    });
+    // Allow both plain objects and pre-built FormData (e.g., from NoticeForm.jsx)
+    let formData;
+
+    if (data instanceof FormData) {
+      formData = data;
+    } else {
+      formData = new FormData();
+      Object.keys(data || {}).forEach(key => {
+        if (key === 'attachments' && data[key]) {
+          data[key].forEach(file => formData.append('attachments', file));
+        } else if (key === 'externalLinks') {
+          formData.append(key, JSON.stringify(data[key] || []));
+        } else if (data[key] !== undefined && data[key] !== null) {
+          formData.append(key, data[key]);
+        }
+      });
+    }
+
+    // Do NOT set Content-Type here - let browser/axios set it with the correct boundary
+    return axiosInstance.put(`/notices/${id}`, formData);
   },
   deleteNotice: (id) => axiosInstance.delete(`/notices/${id}`),
   addComment: (id, data) => axiosInstance.post(`/notices/${id}/comments`, data),
