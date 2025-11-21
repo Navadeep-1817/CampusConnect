@@ -12,6 +12,19 @@ const {
 const { protect, authorize } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 
+// Multer error handler middleware
+const handleMulterError = (err, req, res, next) => {
+  if (err) {
+    console.error('❌ Multer error:', err.message);
+    return res.status(400).json({
+      success: false,
+      message: err.message || 'File upload error',
+      error: err.code
+    });
+  }
+  next();
+};
+
 // All routes require authentication
 router.use(protect);
 
@@ -20,6 +33,7 @@ router.route('/')
   .post(
     authorize('central_admin', 'local_admin', 'faculty'),
     upload.array('attachments', 5),
+    handleMulterError,
     createNotice
   );
 
@@ -28,6 +42,7 @@ router.route('/:id')
   .put(
     authorize('central_admin', 'local_admin', 'faculty'),
     upload.array('attachments', 5),
+    handleMulterError,
     updateNotice
   )
   .delete(

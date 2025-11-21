@@ -50,4 +50,41 @@ const upload = multer({
   fileFilter: fileFilter
 });
 
-module.exports = upload;
+// Add logging wrapper to debug multer processing
+const uploadWithLogging = {
+  array: (fieldName, maxCount) => {
+    return (req, res, next) => {
+      console.log(`📎 Multer processing field: ${fieldName}, expecting up to ${maxCount} files`);
+      console.log(`📎 Content-Type: ${req.headers['content-type']}`);
+      
+      const multerMiddleware = upload.array(fieldName, maxCount);
+      multerMiddleware(req, res, (err) => {
+        if (err) {
+          console.error('❌ Multer error:', err.message, err.code);
+          return next(err);
+        }
+        
+        console.log(`✅ Multer processed successfully`);
+        console.log(`   Files received: ${req.files ? req.files.length : 0}`);
+        console.log(`   Body fields: ${Object.keys(req.body).join(', ')}`);
+        next();
+      });
+    };
+  },
+  single: (fieldName) => {
+    return (req, res, next) => {
+      console.log(`📎 Multer processing single field: ${fieldName}`);
+      const multerMiddleware = upload.single(fieldName);
+      multerMiddleware(req, res, (err) => {
+        if (err) {
+          console.error('❌ Multer error:', err.message);
+          return next(err);
+        }
+        console.log(`✅ Multer processed single file`);
+        next();
+      });
+    };
+  }
+};
+
+module.exports = uploadWithLogging;

@@ -19,15 +19,19 @@ exports.createNotice = async (req, res) => {
     console.log('📝 Create Notice Request:', {
       body: req.body,
       files: req.files,
+      headers: req.headers,
       user: { id: req.user._id, role: req.user.role, department: req.user.department }
     });
     
     console.log('🔍 Detailed req.body inspection:');
-    console.log('  title:', req.body.title, typeof req.body.title);
-    console.log('  content:', req.body.content, typeof req.body.content);
-    console.log('  category:', req.body.category, typeof req.body.category);
-    console.log('  visibility:', req.body.visibility, typeof req.body.visibility);
-    console.log('  All keys in req.body:', Object.keys(req.body));
+    console.log('  req.body type:', typeof req.body);
+    console.log('  req.body is null?:', req.body === null);
+    console.log('  req.body is undefined?:', req.body === undefined);
+    console.log('  req.body keys:', req.body ? Object.keys(req.body) : 'NO BODY');
+    console.log('  title:', req.body?.title, typeof req.body?.title);
+    console.log('  content:', req.body?.content, typeof req.body?.content);
+    console.log('  category:', req.body?.category, typeof req.body?.category);
+    console.log('  visibility:', req.body?.visibility, typeof req.body?.visibility);
 
     let {
       title,
@@ -58,6 +62,23 @@ exports.createNotice = async (req, res) => {
       externalLinks = [];
     }
 
+    // Check if req.body is empty (multer might not be parsing it)
+    if (!req.body || Object.keys(req.body).length === 0) {
+      console.error('❌ CRITICAL: req.body is empty or undefined!');
+      console.error('   Content-Type:', req.headers['content-type']);
+      console.error('   Files received:', req.files ? req.files.length : 0);
+      
+      return res.status(400).json({
+        success: false,
+        message: 'Request body is empty. This is likely a multer configuration issue.',
+        debug: {
+          bodyEmpty: !req.body || Object.keys(req.body).length === 0,
+          contentType: req.headers['content-type'],
+          filesReceived: req.files ? req.files.length : 0
+        }
+      });
+    }
+    
     // Validation with detailed logging
     console.log('🔍 Validation check:');
     console.log('  title exists:', !!title, '| value:', title);
@@ -74,11 +95,18 @@ exports.createNotice = async (req, res) => {
       
       console.error('❌ Validation failed. Missing fields:', missing);
       console.error('   Received values:', { title, content, category, visibility });
+      console.error('   Full req.body:', req.body);
       
       return res.status(400).json({
         success: false,
         message: `Missing required fields: ${missing.join(', ')}`,
-        receivedFields: Object.keys(req.body)
+        receivedFields: Object.keys(req.body),
+        debug: {
+          title: title || 'MISSING',
+          content: content || 'MISSING',
+          category: category || 'MISSING',
+          visibility: visibility || 'MISSING'
+        }
       });
     }
     
